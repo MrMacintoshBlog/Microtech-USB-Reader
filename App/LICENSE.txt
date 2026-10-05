@@ -1,0 +1,15 @@
+Microtech USB Reader and its recovery sources are licensed under the
+GNU General Public License, version 2 or (at your option) any later version.
+
+SmartMedia protocol and geometry are based on the Linux sddr09 driver:
+Copyright (c) 2000, 2001 Robert Baruch
+Copyright (c) 2002 Andries Brouwer
+Contributions acknowledged in the upstream source include Alan Stern.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+The complete GPL version 2 text accompanies this file as GPL-2.0.txt.
+libusb is separately licensed under LGPL-2.1-or-later; its full notice is
+provided in libusb-LGPL.txt and its corresponding source is included.
