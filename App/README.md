@@ -1,4 +1,4 @@
-# Microtech USB Reader 1.5
+# Microtech USB Reader 1.6
 
 An everyday photo-import app for the MicroTech DPCM-USB / CameraMate reader
 (USB 07af:0006). Take pictures, insert your memory card, and copy the photos
@@ -50,3 +50,9 @@ Protocol reference: Linux drivers/usb/storage/sddr09.c (GPL-2.0-or-later),
 Robert Baruch and Andries Brouwer, with assistance credited in that source.
 libusb 1.0.29 is LGPL-2.1-or-later; its upstream source archive is tools/vendor/libusb-1.0.29.tar.bz2.
 App source and recovery helpers are supplied under GPL-2.0-or-later.
+
+Imported photos preserve valid creation and modification dates from the card.
+Missing or invalid dates fall back to EXIF DateTimeOriginal when available;
+otherwise the import date remains. Photo bytes and embedded metadata are unchanged.
+Card dates have no timezone and use the Mac’s current timezone; EXIF UTC offsets
+are honored when available. The import folder keeps its current date.

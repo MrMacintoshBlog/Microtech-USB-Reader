@@ -197,9 +197,12 @@ struct AppFailure: LocalizedError { let errorDescription: String? }
         let urls = (enumerator?.allObjects as? [URL] ?? []).filter { ["jpg","jpeg","tif","tiff","png","gif","bmp","mov","avi","mp4","qt"].contains($0.pathExtension.lowercased()) }.sorted { $0.path < $1.path }
         photos = urls.map(Photo.init)
         let report = try Data(contentsOf:folder.appendingPathComponent("photos-report.json"))
-        let failures = (try JSONSerialization.jsonObject(with:report) as? [String:Any])?["decodeFailures"] as? Int ?? 0
+        let results = try JSONSerialization.jsonObject(with:report) as? [String:Any]
+        let failures = results?["decodeFailures"] as? Int ?? 0
+        let dateWarnings = results?["datePreservationWarnings"] as? Int ?? 0
         status = photos.isEmpty ? "No photos found" : "\(photos.count) files imported"
         detail = photos.isEmpty ? "No photo or video files were found on this card." : failures == 0 ? "Your photos are copied to the Mac and ready to view. You can safely remove the card." : "Files are copied; \(failures) images could not be opened. See Details for more information."
+        if dateWarnings > 0 { detail += " Original dates could not be set for \(dateWarnings) files; see photos-report.json in the import folder." }
         saveLog()
         if !photos.isEmpty { NSWorkspace.shared.open(output) }
     }
@@ -346,7 +349,7 @@ struct ContentView: View {
                             Text("Tested with 2 MB SmartMedia and 32 MB CompactFlash cards. Other SmartMedia capacities have not yet been tested.")
                         }.font(.system(size:12)).fixedSize(horizontal:false,vertical:true).padding(20).frame(width:300)
                     }
-                Text("Version 1.5").font(.system(size:11)).foregroundStyle(.tertiary)
+                Text("Version 1.6").font(.system(size:11)).foregroundStyle(.tertiary)
             }.padding(.horizontal,20).padding(.vertical,10).fixedSize(horizontal:false,vertical:true)
         }.frame(minWidth:900,minHeight:680,alignment:.top).background(Color(nsColor:.windowBackgroundColor))
             .onChange(of:model.kind) { _, _ in

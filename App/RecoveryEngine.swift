@@ -16,6 +16,75 @@ func saveNew(_ data: Data, to url: URL) throws {
     try data.write(to: url, options: .withoutOverwriting)
 }
 func digest(_ data: Data) -> String { SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined() }
+// FAT stores camera-local wall-clock time without a timezone. Use the Mac's
+// current timezone unless the embedded photo date provides its own UTC offset.
+func validatedDate(year: Int, month: Int, day: Int, hour: Int, minute: Int, second: Int, zone: TimeZone) -> Date? {
+    guard (1...9999).contains(year), (1...12).contains(month), (1...31).contains(day),
+          (0...23).contains(hour), (0...59).contains(minute), (0...59).contains(second) else { return nil }
+    var calendar = Calendar(identifier:.gregorian); calendar.timeZone = zone
+    let parts = DateComponents(year:year,month:month,day:day,hour:hour,minute:minute,second:second)
+    guard let date = calendar.date(from:parts) else { return nil }
+    let actual = calendar.dateComponents([.year,.month,.day,.hour,.minute,.second],from:date)
+    guard actual.year == year, actual.month == month, actual.day == day,
+          actual.hour == hour, actual.minute == minute, actual.second == second else { return nil }
+    return date
+}
+func fatDate(_ entries: Data, at o: Int, creation: Bool) -> Date? {
+    func word(_ relative: Int) -> Int { Int(entries[o+relative]) | Int(entries[o+relative+1]) << 8 }
+    let date = word(creation ? 16 : 24), time = word(creation ? 14 : 22)
+    guard date != 0 else { return nil }
+    let fraction = creation ? Int(entries[o+13]) : 0
+    guard fraction <= 199, let result = validatedDate(year:1980+(date >> 9),month:(date >> 5)&15,day:date&31,
+        hour:time >> 11,minute:(time >> 5)&63,second:(time&31)*2+fraction/100,zone:.current) else { return nil }
+    return result.addingTimeInterval(Double(fraction%100)/100)
+}
+func photoDate(_ properties: [String:Any]?) -> Date? {
+    guard let exif = properties?[kCGImagePropertyExifDictionary as String] as? [String:Any],
+          let text = exif[kCGImagePropertyExifDateTimeOriginal as String] as? String else { return nil }
+    // Reject zero dates and impossible calendar values instead of normalizing them.
+    let characters = Array(text)
+    guard characters.count == 19, characters[4] == ":", characters[7] == ":", characters[10] == " ",
+          characters[13] == ":", characters[16] == ":" else { return nil }
+    let fields = text.split(whereSeparator:{ ": ".contains($0) })
+    guard fields.count == 6, fields.map(String.init).map({ $0.count }) == [4,2,2,2,2,2],
+          fields.allSatisfy({ $0.allSatisfy({ $0.isASCII && $0.isNumber }) }) else { return nil }
+    let n = fields.compactMap { Int($0) }
+    guard n.count == 6, n[0] >= 1900 else { return nil }
+    var zone = TimeZone.current
+    if let offset = exif["OffsetTimeOriginal"] as? String, offset.count == 6 {
+        let characters = Array(offset)
+        if (characters[0] == "+" || characters[0] == "-"), characters[3] == ":",
+           let hours = Int(String(characters[1...2])), let minutes = Int(String(characters[4...5])),
+           hours <= 23, minutes <= 59,
+           let explicit = TimeZone(secondsFromGMT:(characters[0] == "-" ? -1 : 1)*(hours*3600+minutes*60)) { zone = explicit }
+    }
+    return validatedDate(year:n[0],month:n[1],day:n[2],hour:n[3],minute:n[4],second:n[5],zone:zone)
+}
+func preserveDates(_ entries: Data, at o: Int, properties: [String:Any]?, file: URL) -> [String:Any] {
+    let embedded = photoDate(properties)
+    let cardCreated = fatDate(entries,at:o,creation:true), cardModified = fatDate(entries,at:o,creation:false)
+    let created = cardCreated ?? embedded, modified = cardModified ?? embedded
+    let importedCreation = (try? FileManager.default.attributesOfItem(atPath:file.path)[.creationDate]) as? Date
+    var attributes = [FileAttributeKey:Any]()
+    var result: [String:Any] = ["creationDateSource":cardCreated != nil ? "card" : embedded != nil ? "photo" : "import",
+                              "modificationDateSource":cardModified != nil ? "card" : embedded != nil ? "photo" : "import",
+                              "cardDateTimezone":TimeZone.current.identifier]
+    let formatter = ISO8601DateFormatter(); formatter.formatOptions = [.withInternetDateTime,.withFractionalSeconds]
+    if let date = embedded { result["embeddedPhotoDate"] = formatter.string(from:date) }
+    if let date = created { attributes[.creationDate] = date; result["originalCreationDate"] = formatter.string(from:date) }
+    if let date = modified { attributes[.modificationDate] = date; result["originalModificationDate"] = formatter.string(from:date) }
+    if !attributes.isEmpty {
+        do {
+            // Setting an older modification date can also move the creation date
+            // on macOS. Restore the intended creation date after setting modification.
+            if let date = modified { try FileManager.default.setAttributes([.modificationDate:date],ofItemAtPath:file.path) }
+            if let date = created ?? importedCreation { try FileManager.default.setAttributes([.creationDate:date],ofItemAtPath:file.path) }
+        }
+        catch { result["dateWarning"] = "Photo copied, but file dates could not be set: \(error.localizedDescription)"; print("Date warning: \(file.lastPathComponent)") }
+    }
+    return result
+}
+
 func reconstruct(_ source: URL, _ target: URL) throws {
     let raw = try Data(contentsOf: source)
     let geometries = [(1,256,16),(2,256,16),(4,512,16),(8,512,16),(16,512,32),(32,512,32),(64,512,32),(128,512,32)]
@@ -142,12 +211,14 @@ struct FATVolume {
                     try FileManager.default.createDirectory(at: path, withIntermediateDirectories: true)
                     try saveNew(content,to:dest)
                     var record: [String: Any] = ["file": dest.path, "bytes": size, "sha256": digest(content)]
+                    let source = CGImageSourceCreateWithData(content as CFData,nil)
+                    let properties = source.flatMap { CGImageSourceCopyPropertiesAtIndex($0,0,nil) as? [String:Any] }
+                    record.merge(preserveDates(entries,at:o,properties:properties,file:dest)) { _, new in new }
                     if ["jpg","jpeg","png","tif","tiff","bmp","gif"].contains(ext.lowercased()) {
-                        let source = CGImageSourceCreateWithData(content as CFData,nil)
                         let decoded = source.flatMap { CGImageSourceCreateImageAtIndex($0,0,[kCGImageSourceShouldCacheImmediately:true] as CFDictionary) }
                         record["decodes"] = decoded != nil
                         if let image = decoded { record["width"] = image.width; record["height"] = image.height }
-                        if let source = source, let properties = CGImageSourceCopyPropertiesAtIndex(source,0,nil) as? [String:Any],
+                        if let properties = properties,
                            let exif = properties[kCGImagePropertyExifDictionary as String] as? [String:Any],
                            let bpp = exif[kCGImagePropertyExifCompressedBitsPerPixel as String] { record["compressedBitsPerPixel"] = bpp }
                     }
@@ -171,7 +242,7 @@ do {
         let data = try Data(contentsOf:source), volume = try FATVolume(data)
         let files = try volume.extract(to:target)
         let report: [String:Any] = ["imageSHA256": digest(data), "fatType": "FAT\(volume.bits)", "files": files,
-            "fileCount": files.count, "decodeFailures": files.filter { ($0["decodes"] as? Bool) == false }.count,
+            "fileCount": files.count, "datePreservationWarnings": files.filter { $0["dateWarning"] != nil }.count, "decodeFailures": files.filter { ($0["decodes"] as? Bool) == false }.count,
             "notes": "Existing photo and video files copied using short FAT filenames. Deleted files are not carved. The saved image is never modified."]
         try saveNew(JSONSerialization.data(withJSONObject:report,options:[.prettyPrinted,.sortedKeys]),to:target.deletingLastPathComponent().appendingPathComponent("photos-report.json"))
         print("EXTRACTED: \(files.count) photo/video files from FAT\(volume.bits)")
