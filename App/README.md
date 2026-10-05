@@ -38,12 +38,12 @@ to the destination folder. This local build is ad-hoc signed, not notarized.
 
 Requires an Apple Silicon Mac running macOS 14 or later. Hardware validation
 was performed on the current Mac; older OS versions have not been tested.
-Rebuild: run Scripts/build_app.sh from this source folder. Requires Xcode's
+Rebuild: run `zsh Scripts/build_app.sh` from this source folder. Requires Xcode's
 Swift and Clang tools. The vendored libusb archive targets Apple Silicon.
-Scripts/build_libusb.sh rebuilds it from the included upstream source archive.
+`zsh Scripts/build_libusb.sh` rebuilds it from the included upstream source archive.
 The app includes a Source Code.zip inside Contents/Resources, with sources,
 build scripts, and the original libusb source archive for rebuilding/relinking.
-To make a fresh distributable ZIP after rebuilding, run Scripts/package_app.py
+To make a fresh distributable ZIP after rebuilding, run `python3 Scripts/package_app.py`
 with Python 3. Python is only needed for packaging/tests, not for running the app.
 
 Protocol reference: Linux drivers/usb/storage/sddr09.c (GPL-2.0-or-later),
