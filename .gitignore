@@ -1,0 +1,15 @@
+.DS_Store
+build/
+*.app/
+Microtech USB Reader v*.zip
+tools/microtech_probe
+tools/microtech_smartmedia
+tools/vendor/libusb-1.0.29/a.out
+tools/vendor/libusb-1.0.29/config.log
+tools/vendor/libusb-1.0.29/config.status
+__pycache__/
+
+# Private local card captures, extracted photos, and generated artifacts
+recovery/
+*.zip
+tools/vendor/libusb-1.0.29/
