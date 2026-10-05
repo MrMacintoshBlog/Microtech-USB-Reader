@@ -1,4 +1,4 @@
-# Microtech USB Reader 1.5
+# Microtech USB Reader 1.6
 
 A native macOS photo-import app for the MicroTech DPCM-USB / CameraMate USB reader.
 
@@ -6,6 +6,8 @@ A native macOS photo-import app for the MicroTech DPCM-USB / CameraMate USB read
 - Check Card shows a green checkmark or a red X with card-specific instructions.
 - Green buttons guide the next step: check the card, then import photos.
 - Fixed sidebar keeps the import controls visible without scrolling.
+- Preserve valid card file dates, with EXIF date-taken fallback.
+- Keep original image bytes and embedded metadata unchanged.
 - App identifier: `com.microtechusbreader.app`.
 
 Requires an Apple Silicon Mac running macOS 14 or later. Validated with a 2 MB

@@ -1,4 +1,4 @@
-# Microtech USB Reader 1.5
+# Microtech USB Reader 1.6
 
 [Download the macOS app](https://github.com/MrMacintoshBlog/Microtech-USB-Reader/releases/latest)
 
@@ -58,3 +58,12 @@ App source and recovery helpers are supplied under GPL-2.0-or-later.
 `Tests/check_recovery.py` runs integration checks against private hardware captures
 under `recovery/`. Those captures and photos are intentionally excluded from this
 repository and all release ZIPs; the test requires your own matching local fixtures.
+
+Imported photos preserve valid creation and modification dates from the card.
+Missing or invalid dates fall back to EXIF DateTimeOriginal when available;
+otherwise the import date remains. Photo bytes and embedded metadata are unchanged.
+Card dates have no timezone and use the Mac’s current timezone; EXIF UTC offsets
+are honored when available. The import folder keeps its current date.
+
+Run `python3 Tests/check_dates.py` for synthetic date-preservation tests. These
+checks generate their own JPEGs and FAT volume and need no private captures.
