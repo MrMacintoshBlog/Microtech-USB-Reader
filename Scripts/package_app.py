@@ -16,7 +16,7 @@ with zipfile.ZipFile(source_zip, "w", compression=zipfile.ZIP_DEFLATED) as archi
         archive.write(path, "Microtech USB Reader Source/" + str(path.relative_to(root)))
 subprocess.run(["codesign", "--force", "--deep", "--sign", "-", str(app)], check=True)
 subprocess.run(["codesign", "--verify", "--deep", "--strict", str(app)], check=True)
-target = root / "Microtech USB Reader v1.5.zip"
+target = root / "Microtech USB Reader v1.6.zip"
 subprocess.run(["ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", str(app), str(target)], check=True)
 print("Created", target)
 print("Corresponding sources included inside app Resources. No recovered photos are packaged.")
